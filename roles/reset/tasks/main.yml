@@ -252,6 +252,41 @@
   tags:
     - ip6tables
 
+- name: Check if nft command exists
+  command: which nft
+  register: nft_exists
+  failed_when: false
+  changed_when: false
+  tags:
+    - nftables
+
+- name: List nftables tables
+  command: nft list tables
+  register: nft_tables
+  failed_when: false
+  changed_when: false
+  when: nft_exists.rc == 0
+  tags:
+    - nftables
+
+- name: Flush and delete all nftables tables
+  shell: |
+    for table in $(nft list tables | awk '{print $NF}'); do
+      nft flush table inet $table 2>/dev/null || true
+      nft delete table inet $table 2>/dev/null || true
+      nft flush table ip $table 2>/dev/null || true
+      nft delete table ip $table 2>/dev/null || true
+      nft flush table ip6 $table 2>/dev/null || true
+      nft delete table ip6 $table 2>/dev/null || true
+    done
+  when:
+    - flush_iptables | bool
+    - nft_exists.rc == 0
+    - nft_tables.stdout | length > 0
+  changed_when: true
+  tags:
+    - nftables
+
 - name: Clear IPVS virtual server table
   command: "ipvsadm -C"
   ignore_errors: true  # noqa ignore-errors
